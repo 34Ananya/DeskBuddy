@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeskBuddy Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0c0e14;
+      --surface:   #13161f;
+      --card:      #191d28;
+      --border:    #252938;
+      --accent:    #4fffb0;
+      --accent2:   #5b8fff;
+      --warn:      #ffb347;
+      --danger:    #ff5f7e;
+      --text:      #e4e8f2;
+      --muted:     #626880;
+      --font-mono: 'Space Mono', monospace;
+      --font-sans: 'Sora', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Grid noise overlay ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(79,255,176,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,255,176,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    .app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .logo-text h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -.5px; }
+    .logo-text p { font-size: .75rem; color: var(--muted); font-family: var(--font-mono); }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: .75rem; font-family: var(--font-mono);
+      color: var(--muted);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      transition: background .4s;
+    }
+    .status-dot.live { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Stat cards row ── */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+      margin-bottom: 24px;
+    }
+    @media(max-width:700px){ .stats-row { grid-template-columns: repeat(2,1fr); } }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      position: relative; overflow: hidden;
+      transition: border-color .3s;
+    }
+    .stat-card:hover { border-color: var(--accent); }
+    .stat-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      opacity: 0; transition: opacity .3s;
+    }
+    .stat-card:hover::before { opacity: 1; }
+    .stat-label { font-size: .7rem; color: var(--muted); font-family: var(--font-mono); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+    .stat-value { font-size: 1.8rem; font-weight: 700; font-family: var(--font-mono); line-height: 1; }
+    .stat-sub { font-size: .7rem; color: var(--muted); margin-top: 6px; }
+
+    .stat-value.green { color: var(--accent); }
+    .stat-value.blue  { color: var(--accent2); }
+    .stat-value.warn  { color: var(--warn); }
+    .stat-value.danger{ color: var(--danger); }
+
+    /* ── Main grid ── */
+    .main-grid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
+    @media(max-width:900px){ .main-grid { grid-template-columns: 1fr; } }
+
+    /* ── Card base ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .card-title { font-size: .9rem; font-weight: 600; letter-spacing: -.2px; }
+    .card-tag {
+      font-size: .65rem; font-family: var(--font-mono); color: var(--muted);
+      background: var(--surface); padding: 3px 8px; border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Chart ── */
+    .chart-wrap { position: relative; height: 240px; }
+
+    /* ── Mode badge ── */
+    .mode-row { display: flex; gap: 10px; margin-top: 16px; }
+    .mode-badge {
+      flex: 1; text-align: center;
+      padding: 8px 6px;
+      border-radius: 10px;
+      font-size: .7rem; font-family: var(--font-mono); font-weight: 700;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      letter-spacing: 1px;
+      transition: all .3s;
+    }
+    .mode-badge.active-work  { background: rgba(79,255,176,.12); border-color: var(--accent);  color: var(--accent);  }
+    .mode-badge.active-break { background: rgba(91,143,255,.12); border-color: var(--accent2); color: var(--accent2); }
+    .mode-badge.active-sleep { background: rgba(255,95,126,.12); border-color: var(--danger);  color: var(--danger);  }
+
+    /* ── Reminders panel ── */
+    .reminders-panel { display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── Device panel ── */
+    .device-panel { margin-bottom: 20px; }
+    .sensor-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .sensor-row:last-child { border-bottom: none; }
+    .sensor-name { font-size: .8rem; color: var(--muted); font-family: var(--font-mono); }
+    .sensor-val  { font-size: .85rem; font-weight: 600; font-family: var(--font-mono); color: var(--text); }
+
+    /* ── Reminders list ── */
+    .reminders-list { display: flex; flex-direction: column; gap: 10px; }
+    .reminder-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: border-color .2s;
+    }
+    .reminder-item:hover { border-color: var(--accent); }
+    .reminder-icon { font-size: 1.2rem; width: 28px; text-align: center; flex-shrink: 0; }
+    .reminder-info { flex: 1; min-width: 0; }
+    .reminder-title { font-size: .82rem; font-weight: 600; }
+    .reminder-time  { font-size: .7rem; color: var(--muted); font-family: var(--font-mono); margin-top: 2px; }
+    .reminder-del {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 1rem; padding: 4px; border-radius: 6px;
+      transition: color .2s, background .2s;
+    }
+    .reminder-del:hover { color: var(--danger); background: rgba(255,95,126,.1); }
+
+    /* ── Add reminder form ── */
+    .add-form {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 16px; background: var(--surface); border-radius: 12px;
+      border: 1px dashed var(--border);
+    }
+    .add-form input, .add-form select {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: var(--font-sans); font-size: .82rem;
+      padding: 9px 12px; outline: none; transition: border-color .2s;
+    }
+    .add-form input:focus, .add-form select:focus { border-color: var(--accent); }
+    .add-form select option { background: var(--card); }
+    .btn {
+      padding: 9px 16px; border-radius: 8px; border: none;
+      font-family: var(--font-mono); font-size: .75rem; font-weight: 700;
+      cursor: pointer; transition: all .2s; letter-spacing: .5px;
+    }
+    .btn-primary { background: var(--accent); color: #0c0e14; }
+    .btn-primary:hover { opacity: .85; transform: translateY(-1px); }
+    .btn-ghost {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-row { display: flex; gap: 8px; }
+
+    /* ── Activity log ── */
+    .log-list { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
+    .log-list::-webkit-scrollbar { width: 4px; }
+    .log-list::-webkit-scrollbar-track { background: transparent; }
+    .log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .log-item { display: flex; gap: 10px; align-items: flex-start; }
+    .log-time  { font-size: .65rem; color: var(--muted); font-family: var(--font-mono); flex-shrink: 0; padding-top: 2px; }
+    .log-msg   { font-size: .75rem; color: var(--text); }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px;
+      background: var(--card); border: 1px solid var(--accent);
+      color: var(--accent); font-family: var(--font-mono); font-size: .75rem;
+      padding: 10px 18px; border-radius: 10px;
+      transform: translateY(80px); opacity: 0;
+      transition: all .3s; z-index: 100;
+      box-shadow: 0 4px 20px rgba(79,255,176,.2);
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; color: var(--muted); font-size: .8rem; padding: 20px 0; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🤖</div>
+      <div class="logo-text">
+        <h1>DeskBuddy</h1>
+        <p>IoT Productivity Dashboard</p>
+      </div>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot" id="liveDot"></div>
+      <span id="liveLabel">Connecting…</span>
+    </div>
+  </header>
+
+  <!-- Stat cards -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Session</div>
+      <div class="stat-value green" id="statSession">--</div>
+      <div class="stat-sub">minutes today</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Presence</div>
+      <div class="stat-value blue" id="statPresence">--</div>
+      <div class="stat-sub" id="statPresenceSub">waiting…</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Mode</div>
+      <div class="stat-value" id="statMode" style="font-size:1.1rem;padding-top:6px">--</div>
+      <div class="stat-sub" id="statModeSub">—</div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+
+    <!-- Left column: chart + log -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Productivity graph -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📊 Productivity Graph</span>
+          <span class="card-tag" id="chartTag">last 20 polls</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="workChart"></canvas>
+        </div>
+        <div class="mode-row">
+          <div class="mode-badge" id="mBadge0">WORK</div>
+          <div class="mode-badge" id="mBadge1">BREAK</div>
+          <div class="mode-badge" id="mBadge2">SLEEP</div>
+        </div>
+      </div>
+
+      <!-- Activity log -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🗒 Activity Log</span>
+          <button class="btn btn-ghost" style="font-size:.65rem;padding:4px 10px" onclick="clearLog()">Clear</button>
+        </div>
+        <ul class="log-list" id="logList">
+          <li class="log-item"><span class="log-time">--:--</span><span class="log-msg">Waiting for device…</span></li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Right column: device + reminders -->
+    <div class="reminders-panel">
+
+      <!-- Device status -->
+      <div class="card device-panel">
+        <div class="card-header">
+          <span class="card-title">🖥 Device Status</span>
+          <span class="card-tag">ESP32</span>
+        </div>
+
+        <div class="sensor-row">
+          <span class="sensor-name">V0 · SESSION</span>
+          <span class="sensor-val" id="dv0">— min</span>
+        </div>
+        <div class="sensor-row">
+          <span class="sensor-name">V1 · PRESENT</span>
+          <span class="sensor-val" id="dv1">—</span>
+        </div>
+        <div class="sensor-row">
+          <span class="sensor-name">V3 · MODE</span>
+          <span class="sensor-val" id="dv3">—</span>
+        </div>
+
+      </div>
+
+      <!-- Reminders -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🔔 Reminders</span>
+          <button class="btn btn-ghost" style="font-size:.65rem;padding:4px 10px" onclick="toggleForm()">+ Add</button>
+        </div>
+
+        <!-- Add form (hidden by default) -->
+        <div class="add-form" id="addForm" style="display:none;margin-bottom:14px">
+          <input type="text" id="rTitle" placeholder="Reminder title…" maxlength="40" />
+          <select id="rType">
+            <option value="💧">💧 Hydrate</option>
+            <option value="👁">👁 Eye Care</option>
+            <option value="🧘">🧘 Stretch</option>
+            <option value="☕">☕ Coffee break</option>
+            <option value="📝">📝 Custom</option>
+          </select>
+          <input type="number" id="rInterval" placeholder="Every X minutes (e.g. 30)" min="1" max="1440" />
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="addReminder()">Save</button>
+            <button class="btn btn-ghost" onclick="toggleForm()">Cancel</button>
+          </div>
+        </div>
+
+        <div class="reminders-list" id="remindersList">
+          <!-- filled by JS -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────
+const BLYNK_TOKEN  = '2eS8RPsAHjcpOtxEKi5X1H1ry6jGEykx';
+const BLYNK_BASE   = 'https://blynk.cloud/external/api';
+const POLL_MS      = 5000; // poll every 5 s (matches device CLOUD_INTERVAL)
+
+// ── State ─────────────────────────────────────────────────────
+let sessionHistory  = JSON.parse(localStorage.getItem('db_sessionHistory') || '[]');
+let reminders       = JSON.parse(localStorage.getItem('db_reminders') || '[]');
+let logEntries      = JSON.parse(localStorage.getItem('db_logEntries') || '[]');
+let prevMode        = null;
+let prevPresent     = null;
+let chart           = null;
+let reminderTimers  = {};
+
+// ── Chart init ────────────────────────────────────────────────
+function initChart() {
+  const ctx = document.getElementById('workChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Session (min)',
+        data: [],
+        borderColor: '#4fffb0',
+        backgroundColor: 'rgba(79,255,176,.08)',
+        borderWidth: 2,
+        pointBackgroundColor: '#4fffb0',
+        pointRadius: 3,
+        tension: 0.4,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#626880', font: { family: 'Space Mono', size: 10 } }, grid: { color: '#252938' } },
+        y: { ticks: { color: '#626880', font: { family: 'Space Mono', size: 10 } }, grid: { color: '#252938' }, beginAtZero: true }
+      },
+      animation: { duration: 400 }
+    }
+  });
+}
+
+// ── Blynk polling ─────────────────────────────────────────────
+async function fetchPin(pin) {
+  const url = `${BLYNK_BASE}/get?token=${BLYNK_TOKEN}&${pin}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  const d = await r.json();
+  return Array.isArray(d) ? d[0] : d;
+}
+
+async function poll() {
+  try {
+    const [v0, v1, v2, v3] = await Promise.all([
+      fetchPin('v0'), fetchPin('v1'), fetchPin('v2'), fetchPin('v3')
+    ]);
+
+    const minutes  = parseInt(v0)  || 0;
+    const present  = parseInt(v1)  === 1;
+    const dist     = parseFloat(v2) || 0;
+    const mode     = parseInt(v3)  || 0;
+
+    // Live indicator
+    setLive(true);
+
+    // Stat cards
+    el('statSession').textContent  = minutes;
+    el('statPresence').textContent = present ? 'YES' : 'NO';
+    el('statPresence').className   = 'stat-value ' + (present ? 'green' : 'danger');
+    el('statPresenceSub').textContent = present ? 'at desk' : 'away';
+    const modeNames = ['WORK','BREAK','SLEEP'];
+    const modeColors = ['green','blue','danger'];
+    el('statMode').textContent     = modeNames[mode] || '—';
+    el('statMode').className       = 'stat-value ' + (modeColors[mode] || '');
+    el('statModeSub').textContent  = ['Focus mode','Relax mode','Away / sleeping'][mode] || '—';
+
+    // Device panel
+    el('dv0').textContent = minutes + ' min';
+    el('dv1').textContent = present ? '✅ Present' : '❌ Away';
+    el('dv1').style.color = present ? 'var(--accent)' : 'var(--danger)';
+    el('dv3').textContent = modeNames[mode] || '—';
+
+    // Mode badges
+    for (let i = 0; i < 3; i++) {
+      el('mBadge'+i).className = 'mode-badge' + (mode===i ? [' active-work',' active-break',' active-sleep'][i] : '');
+    }
+
+    // Chart
+    const now = new Date();
+    const label = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+    sessionHistory.push({ time: label, minutes });
+    if (sessionHistory.length > 20) sessionHistory.shift();
+    localStorage.setItem('db_sessionHistory', JSON.stringify(sessionHistory));
+    chart.data.labels   = sessionHistory.map(d => d.time);
+    chart.data.datasets[0].data = sessionHistory.map(d => d.minutes);
+    chart.update();
+
+    // Activity log: mode change
+    if (mode !== prevMode && prevMode !== null) {
+      addLog(`Mode changed → ${modeNames[mode]}`, mode === 0 ? '🟢' : mode === 1 ? '🔵' : '😴');
+    }
+    prevMode = mode;
+
+    // Activity log: presence change
+    if (present !== prevPresent && prevPresent !== null) {
+      addLog(present ? 'User returned to desk' : 'User left desk', present ? '👋' : '🚶');
+    }
+    prevPresent = present;
+
+    // Check custom reminder triggers
+    checkReminderAlerts(mode, present, minutes);
+
+  } catch (e) {
+    setLive(false);
+    console.warn('Blynk fetch error:', e);
+  }
+}
+
+// ── Live indicator ────────────────────────────────────────────
+function setLive(live) {
+  el('liveDot').className  = 'status-dot' + (live ? ' live' : '');
+  el('liveLabel').textContent = live ? 'Live' : 'Disconnected';
+}
+
+// ── Activity log ──────────────────────────────────────────────
+function addLog(msg, icon='ℹ️') {
+  const now = new Date();
+  const t = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  logEntries.unshift({ t, msg, icon });
+  if (logEntries.length > 30) logEntries.pop();
+  localStorage.setItem('db_logEntries', JSON.stringify(logEntries));
+  renderLog();
+}
+
+function renderLog() {
+  const ul = el('logList');
+  ul.innerHTML = logEntries.map(e =>
+    `<li class="log-item">
+      <span class="log-time">${e.t}</span>
+      <span class="log-msg">${e.icon} ${e.msg}</span>
+    </li>`
+  ).join('') || '<li class="log-item"><span class="log-msg" style="color:var(--muted)">No events yet</span></li>';
+}
+
+function clearLog() {
+  logEntries = [];
+  localStorage.removeItem('db_logEntries');
+  renderLog();
+}
+
+// ── Reminders ─────────────────────────────────────────────────
+function saveReminders() { localStorage.setItem('db_reminders', JSON.stringify(reminders)); }
+
+function renderReminders() {
+  const list = el('remindersList');
+  if (!reminders.length) {
+    list.innerHTML = '<div class="empty">No reminders yet.<br>Press + Add to create one.</div>';
+    return;
+  }
+  list.innerHTML = reminders.map((r,i) =>
+    `<div class="reminder-item">
+      <div class="reminder-icon">${r.icon}</div>
+      <div class="reminder-info">
+        <div class="reminder-title">${r.title}</div>
+        <div class="reminder-time">Every ${r.interval} min · ${r.active ? '🟢 active' : '⏸ paused'}</div>
+      </div>
+      <button class="reminder-del" onclick="deleteReminder(${i})" title="Delete">✕</button>
+    </div>`
+  ).join('');
+}
+
+function toggleForm() {
+  const f = el('addForm');
+  f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+}
+
+function addReminder() {
+  const title    = el('rTitle').value.trim();
+  const icon     = el('rType').value;
+  const interval = parseInt(el('rInterval').value) || 30;
+  if (!title) { showToast('Enter a title!'); return; }
+  const r = { title, icon, interval, active: true, lastFired: Date.now() };
+  reminders.push(r);
+  saveReminders();
+  renderReminders();
+  scheduleReminder(reminders.length - 1);
+  toggleForm();
+  el('rTitle').value = ''; el('rInterval').value = '';
+  showToast('Reminder added ✓');
+  addLog(`Reminder added: ${title}`, icon);
+}
+
+function deleteReminder(i) {
+  clearTimeout(reminderTimers[i]);
+  reminders.splice(i, 1);
+  saveReminders();
+  renderReminders();
+  showToast('Reminder removed');
+}
+
+function scheduleReminder(i) {
+  if (i >= reminders.length) return;
+  const r = reminders[i];
+  const ms = r.interval * 60 * 1000;
+  reminderTimers[i] = setTimeout(() => {
+    fireReminder(i);
+    scheduleReminder(i);
+  }, ms);
+}
+
+function fireReminder(i) {
+  const r = reminders[i];
+  if (!r) return;
+  showToast(`${r.icon} ${r.title}`);
+  addLog(`Reminder fired: ${r.title}`, r.icon);
+  if (Notification.permission === 'granted') {
+    new Notification('DeskBuddy', { body: r.title, icon: '🤖' });
+  }
+
+  fetch(`${BLYNK_BASE}/update?token=${BLYNK_TOKEN}&v4=${encodeURIComponent(r.title)}`)
+  .then(res => res.text().then(t => console.log('V4 status:', res.status, t)))
+  .catch(e => console.warn('V4 write failed:', e));
+}
+
+function checkReminderAlerts(mode, present, minutes) {
+  // Built-in reminders from the device logic (visual-only here)
+  // Custom ones are handled by scheduleReminder
+}
+
+// ── Notification permission ───────────────────────────────────
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = el('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Util ──────────────────────────────────────────────────────
+function el(id) { return document.getElementById(id); }
+
+// ── Boot ──────────────────────────────────────────────────────
+initChart();
+// Restore persisted chart history
+if (sessionHistory.length) {
+  chart.data.labels = sessionHistory.map(d => d.time);
+  chart.data.datasets[0].data = sessionHistory.map(d => d.minutes);
+  chart.update();
+}
+renderLog();
+renderReminders();
+reminders.forEach((_,i) => scheduleReminder(i));
+requestNotifPermission();
+addLog('Dashboard started', '🚀');
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>
